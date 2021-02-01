@@ -1,0 +1,239 @@
+---
+title: "Analise Estatística de Bancos"
+author: "Carlos E. Carvalho"
+date: "1/31/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Neste documento serão analisados os preços de fechamento das ações de 5 bancos durante o ano de 2020.  São eles: Banco do Brasil, Santander, Bradesco, Itaú e Banrisul
+O objetivo é mostrar a variação do preço das ações durante o ano, apresentar alguns valores estatísticos do preço das ações e verificar se existe alguma relação entre os bancos.
+
+LinkedIn: https://www.linkedin.com/in/carlos-carvalho-93204b13/
+Github: https://github.com/CarlosCarvalho1981/AnaliseEstatisticaBancos
+
+Definição do diretório de trabalho e carregamento das bibliotecas necessárias.
+
+```{r }
+setwd("D:/CIENTISTA_DADOS/BANCOS")
+getwd()
+
+#http://www.quantmod.com/
+
+#Carrega todos os pacotes
+
+library(quantmod)
+library(xts)
+library(moments)
+library(readr)
+library(rvest)
+library(stringr)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(psych)
+```
+Aqui são definidas as datas para a coleta do valor das ações.
+Neste caso estão sendo selecionados todos os dias de 2020, desconsiderando o dia primeiro de Janeiro e 31 de Dezembro.
+```{r}
+startDate <- as.Date("2020-01-02")
+endDate <- as.Date("2022-12-30")
+```
+Esse vetor indica quais bancos serão pesquisados.  É importante verificar no yahoo finanças (https://br.financas.yahoo.com/) o ticker correto para cada ação que será pesquisada.
+```{r}
+bancos <- c("BBAS3.SA", "BCSA34.SA", "BBDC4.SA", "ITUB4.SA", "BRSR6.SA")
+```
+Para criar a estrutura do data frame com a quantidade correta de linhas, utiliza-se a estrutura coletada da primeira ação, neste caso, Banco do Brasil.
+```{r}
+ticker <- bancos[1]
+dfBancos <- getSymbols(ticker, src = "yahoo", from = startDate, to = endDate, auto.assign = F)
+```
+Em seguida é criado o gráfico de velas (candlechart) para mostrar a variação do preço dos papéis da empresa.
+Esse arquivo será salvo em memória e para gerar o nome correto do arquivo de forma automática é necessário executar as seguintes instruções:
+
+1 - Cria-se uma string com a extensão do arquivo:
+```{r}
+extensao <- ".png"
+```
+2 - Os nomes das ações (ticker) tem os caracteres ".SA" no final.  Retira-se esses caracteres para que não criem problemas no nome do arquivo:
+```{r}
+Completo <- str_replace(ticker, "\\.","") #Retira o ponto (.)
+Completo
+Completo <- str_replace(Completo, "SA","") #Retira o SA
+Completo
+```
+3 - Junta-se o nome da empresa (sem o .SA) com a extensão:
+```{r}
+Completo <- paste(Completo, extensao)
+Completo
+```
+4 - Retira-se o espaço que ficou entre as duas strings:
+```{r}
+Completo <- str_replace(Completo, "\\s", "")
+Completo
+```
+5 - Agora cria-se o gráfico, salvando-o na memória com o nome correto.
+
+```{r}
+#png(filename = Completo, width = 1200, height = 600, res = 80)
+candleChart(dfBancos, name = ticker)
+#dev.off()
+```
+Para que o arquivo seja salvo na memória, é necessário descomentar as linhas 79 e 81.
+
+Agora extrai-se apenas a coluna com o preço de fechamento em cada dia.
+```{r}
+dfBancos <- dfBancos[,4]
+```
+E então capta-se os valores das ações de todos os outros bancos (ou empresas) que estão no vetor bancos.  Esse processo é feito em um loop, captando todos os valores, extraindo apenas a coluna com o preço de fechamento de cada dia, organizando o nome do gráfico para salvar na memória e criando o gráfico.
+```{r}
+for (i in 2:length(bancos)){
+  ticker <- bancos[i]
+  obj <- getSymbols(ticker, src = "yahoo", from = startDate, to = endDate, auto.assign = F)
+  
+  #Retira o ponto (.) do ticker
+  Completo <- str_replace(ticker, "\\.","")
+  Completo
+  #Retira o SA do nome
+  Completo <- str_replace(Completo, "SA","")
+  Completo
+  #Junta o nome com a extensão .png
+  Completo <- paste(Completo, extensao)
+  Completo
+  #Retira o espaço do nome
+  Completo <- str_replace(Completo, "\\s", "")
+  Completo
+  
+  #Gera a figura
+  #png(filename = Completo, width = 1200, height = 600, res = 80) - Retire o comentário para salvar o arquivo em memória
+  candleChart(obj, name = ticker)
+  #dev.off() - Retire o comentário para salvar o arquivo em memória
+  
+  obj1 <- as.vector(obj[,4])
+  dfBancos <- cbind(dfBancos,obj1)
+  Sys.sleep(0.3) #É importante esperar um tempo para cada requisição, senão o site pode bloquear
+}
+```
+Observa-se como ficou o dataset
+```{r}
+head(dfBancos)
+```
+Altera-se o nome das colunas para que seja mais fácil de identificar.
+```{r}
+colnames(dfBancos) <- c("BancoBrasil", "Santander", "Bradesco", "Itau", "Banrisul")
+```
+Retira-se os valores faltantes (NA) das linhas.
+```{r}
+dfBancos <- dfBancos[complete.cases(dfBancos), ]
+```
+A partir desse ponto, observam-se algumas medidas estatísticas para cada empresa.
+A instrução a seguir mostra os valores mínimos e máximos, todos os quartis e a média para o preço de fechamento dos papéis de cada banco.  Essas medidas são conhecidas como medidas de tendência central.
+```{r}
+summary(dfBancos)
+```
+Também é importante observar o desvio padrão e a variância dos valores.
+```{r}
+#Desvio padrão
+apply(dfBancos,2, sd)
+
+#Variância
+apply(dfBancos,2, var)
+```
+Pelo valor do desvio padrão é possível ver que o Banco do Brasil tem o maior valor, indicando que foram os papéis com a maior variação entre os bancos pesquisados, durante o ano.
+O coeficiente de variação, calculado abaixo, mostra essa variação em termos percentuais em relação à média.  Com isso é possível fazer uma avaliação mais apropriada.
+```{r}
+#Coeficiente de Varição
+CV <- function(x){
+  return ((sd(x)/mean(x))*100)
+}
+
+apply(dfBancos,2,CV)
+```
+Com isso, é possível perceber que, em relação à média, os papéis do Banco do Brasil foram os que mais variaram durante o ano, seguidos de perto pelo Banrisul.
+
+As medidas de dispersão são outra ferramenta estatística que se pode utilizar para avaliar o comportamento das amostras.
+O coeficiente de assimetria representa o quanto a distribuição está próxima de uma distribuição normal (em relação a horizontal).
+```{r}
+apply(dfBancos, 2, skewness)
+```
+Um coeficiente de assimetria menor do que zero indica que a distribuição está deslocada para a esquerda. Se o coeficiente for maior do que zero, a distribuição está deslocada para a direita.  A distribuição normal tem o coeficiente de assimetria igual a zero.
+
+Já a curtose indica a variação da distribuição no eixo vertical.
+```{r}
+apply(dfBancos, 2, kurtosis)
+```
+Para continuar a análise estatística observando a relação entre as variáveis, é necessário transformar o dataset em um objeto do tipo dataframe e inserir uma coluna de índice numérica.
+```{r}
+
+dfBancos <- as.data.frame(dfBancos)
+dfBancos <- dfBancos %>% mutate(id = row_number())
+rownames(dfBancos) <- dfBancos$id
+dfBancos$id <- NULL
+head(dfBancos)
+```
+A tabela a seguir mostra a correlação entre o preço de fechamento dos papéis dos bancos analisados, em 2020.  É possível ver que, aparentemente, existem algumas correlações entre as empresas.  Essas correlações podem ser apenas coincidência.  Lembrando também que correlação não significa causalidade. Ou seja, a correlação não indica que um papel influenciou no outro ou que essa correlação vai acontecer sempre.
+```{r}
+cor(as.data.frame(dfBancos[c("BancoBrasil", "Santander", "Bradesco", "Itau", "Banrisul")]))
+```
+A figura a seguir ajuda a visualizar essas correlações:
+```{r}
+pairs.panels(dfBancos[c("BancoBrasil", "Santander", "Bradesco", "Itau", "Banrisul")])
+```
+Para finalizar, observa-se um histograma e um boxplot para cada um dos bancos analisados:
+
+1 - Banco do Brasil:
+```{r}
+ggplot(dfBancos, aes(x = BancoBrasil), binwidth = 30) + 
+  geom_histogram(aes(y = ..density..), fill = "yellow1", alpha = 0.5)+
+  geom_density(colour = "blue") + xlab(expression(bold("Preço de Fechamento"))) + 
+  ylab(expression(bold("Densidade")))
+
+ggplot(dfBancos, aes(y = BancoBrasil)) + geom_boxplot() 
+```
+
+2 - Santander:
+```{r}
+ggplot(dfBancos, aes(x = Santander), binwidth = 30) + 
+  geom_histogram(aes(y = ..density..), fill = "tomato", alpha = 0.5)+
+  geom_density(colour = "blue") + xlab(expression(bold("Preço de Fechamento"))) + 
+  ylab(expression(bold("Densidade")))
+
+ggplot(dfBancos, aes(y = Santander)) + geom_boxplot()
+```
+
+3 - Bradesco:
+```{r}
+ggplot(dfBancos, aes(x = Bradesco), binwidth = 30) + 
+  geom_histogram(aes(y = ..density..), fill = "red", alpha = 0.5)+
+  geom_density(colour = "blue") + xlab(expression(bold("Preço de Fechamento"))) + 
+  ylab(expression(bold("Densidade")))
+
+ggplot(dfBancos, aes(y = Bradesco)) + geom_boxplot() 
+```
+
+4 - Itaú:
+```{r}
+ggplot(dfBancos, aes(x = Itau), binwidth = 30) + 
+  geom_histogram(aes(y = ..density..), fill = "blue4", alpha = 0.5)+
+  geom_density(colour = "blue") + xlab(expression(bold("Preço de Fechamento"))) + 
+  ylab(expression(bold("Densidade")))
+
+ggplot(dfBancos, aes(y = Itau)) + geom_boxplot() 
+```
+
+5 - Banrisul:
+```{r}
+ggplot(dfBancos, aes(x = Banrisul), binwidth = 30) + 
+  geom_histogram(aes(y = ..density..), fill = "skyblue2", alpha = 0.5)+
+  geom_density(colour = "blue") + xlab(expression(bold("Preço de Fechamento"))) + 
+  ylab(expression(bold("Densidade")))
+
+ggplot(dfBancos, aes(y = Banrisul)) + geom_boxplot() 
+
+```
+
+
+
